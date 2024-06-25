@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 #March 2023 update:
 #% matplotlib inline
-device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "mps")
 
 df = pd.read_csv("./Chapter3/in_domain_train.tsv", delimiter='\t', header=None, names=['sentence_source', 'label', 'label_notes', 'sentence'])
 # print(df.shape)
