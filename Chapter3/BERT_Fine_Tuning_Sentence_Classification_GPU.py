@@ -111,6 +111,11 @@ model.to(device)
 
 param_optimizer = list(model.named_parameters())
 no_decay = ['bias', 'LayerNorm.weight']
+# for n, p in param_optimizer:
+#   for nd in no_decay:
+#     print(n)
+#     print(nd)
+#     print(nd in n)
 optimizer_grouped_parameters = [
     # Filter for all parameters which *don't* include 'bias', 'gamma', 'beta'.
     {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
@@ -227,4 +232,86 @@ plt.ylabel("Loss")
 plt.plot(train_loss_set)
 plt.show()
 
-# print('a')
+#@title Predicting and Evaluating Using the Holdout Dataset 
+df = pd.read_csv("./Chapter3/out_of_domain_dev.tsv", delimiter='\t', header=None, names=['sentence_source', 'label', 'label_notes', 'sentence'])
+
+# Create sentence and label lists
+sentences = df.sentence.values
+
+# We need to add special tokens at the beginning and end of each sentence for BERT to work properly
+sentences = ["[CLS] " + sentence + " [SEP]" for sentence in sentences]
+labels = df.label.values
+
+tokenized_texts = [tokenizer.tokenize(sent) for sent in sentences]
+
+
+MAX_LEN = 128
+
+# Use the BERT tokenizer to convert the tokens to their index numbers in the BERT vocabulary
+input_ids = [tokenizer.convert_tokens_to_ids(x) for x in tokenized_texts]
+# Pad our input tokens
+input_ids = pad_sequences(input_ids, maxlen=MAX_LEN, dtype="long", truncating="post", padding="post")
+# Create attention masks
+attention_masks = []
+
+# Create a mask of 1s for each token followed by 0s for padding
+for seq in input_ids:
+  seq_mask = [float(i>0) for i in seq]
+  attention_masks.append(seq_mask) 
+
+prediction_inputs = torch.tensor(input_ids)
+prediction_masks = torch.tensor(attention_masks)
+prediction_labels = torch.tensor(labels)
+  
+batch_size = 32  
+
+
+prediction_data = TensorDataset(prediction_inputs, prediction_masks, prediction_labels)
+prediction_sampler = SequentialSampler(prediction_data)
+prediction_dataloader = DataLoader(prediction_data, sampler=prediction_sampler, batch_size=batch_size)
+
+# Prediction on test set
+
+# Put model in evaluation mode
+model.eval()
+
+# Tracking variables 
+predictions , true_labels = [], []
+
+# Predict 
+for batch in prediction_dataloader:
+  # Add batch to GPU
+  batch = tuple(t.to(device) for t in batch)
+  # Unpack the inputs from our dataloader
+  b_input_ids, b_input_mask, b_labels = batch
+  # Telling the model not to compute or store gradients, saving memory and speeding up prediction
+  with torch.no_grad():
+    # Forward pass, calculate logit predictions
+    logits = model(b_input_ids, token_type_ids=None, attention_mask=b_input_mask)
+
+  # Move logits and labels to CPU
+  logits = logits['logits'].detach().cpu().numpy()
+  label_ids = b_labels.to('cpu').numpy()
+  
+  # Store predictions and true labels
+  predictions.append(logits)
+  true_labels.append(label_ids)
+
+#@title Evaluating Using Matthew's Correlation Coefficient
+# Import and evaluate each test batch using Matthew's correlation coefficient
+from sklearn.metrics import matthews_corrcoef
+matthews_set = []
+
+for i in range(len(true_labels)):
+  matthews = matthews_corrcoef(true_labels[i],
+                 np.argmax(predictions[i], axis=1).flatten())
+  matthews_set.append(matthews)
+
+print(matthews_set)
+
+#@title Matthew's Evaluation on the Whole Dataset
+# Flatten the predictions and true values for aggregate Matthew's evaluation on the whole dataset
+flat_predictions = [item for sublist in predictions for item in sublist]
+flat_predictions = np.argmax(flat_predictions, axis=1).flatten()
+flat_true_labels = [item for sublist in true_labels for item in sublist]
+print(matthews_corrcoef(flat_true_labels, flat_predictions))
