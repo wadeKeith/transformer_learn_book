@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader, RandomSampler, SequentialSampler
 #March 2023 update
-#from keras.preprocessing.sequence import pad_sequences
-from keras.utils import pad_sequences
+# from keras.preprocessing.sequence import pad_sequences
+from keras.api.utils import pad_sequences
 import os
 from sklearn.model_selection import train_test_split
 from transformers import BertTokenizer, BertConfig
@@ -15,7 +15,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 #March 2023 update:
 #% matplotlib inline
-device = torch.device("cuda" if torch.cuda.is_available() else "mps")
+device = torch.device("cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu")
 
 df = pd.read_csv("./Chapter3/in_domain_train.tsv", delimiter='\t', header=None, names=['sentence_source', 'label', 'label_notes', 'sentence'])
 # print(df.shape)

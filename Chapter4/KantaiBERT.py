@@ -112,6 +112,7 @@ training_args = TrainingArguments(
     per_device_train_batch_size=64,
     save_steps=10_000,
     save_total_limit=10,
+    use_mps_device=True,
 )
 
 trainer = Trainer(
